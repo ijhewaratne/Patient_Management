@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -7,8 +8,17 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 import database
 import models
+from config import load_local_env
 
-SECRET_KEY = "supersecretkey_change_in_production"
+load_local_env()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "Missing required environment variable: SECRET_KEY. "
+        "Copy backend/.env.example to backend/.env and set a secure value."
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 

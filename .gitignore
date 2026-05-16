@@ -21,6 +21,7 @@ frontend/coverage/
 # Environment files
 .env
 .env.*
+!backend/.env.example
 
 # Local databases
 *.db
