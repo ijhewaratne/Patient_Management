@@ -16,6 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const handleLogout = () => {
+    localStorage.removeItem('access_token');
     localStorage.removeItem('token');
     localStorage.removeItem('user_id');
     router.push('/');

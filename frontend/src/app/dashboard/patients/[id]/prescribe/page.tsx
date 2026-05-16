@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { differenceInYears } from 'date-fns';
 import {
-  ClinicSettings,
   Medication,
   patientAPI,
   medicationAPI,
@@ -14,15 +12,29 @@ import {
   Patient,
   Prescription,
   PrescriptionItem,
-  settingsAPI,
 } from '@/lib/api';
-import { generatePrescriptionPDF } from '@/lib/pdf';
+import { calculateAge } from '@/lib/age';
 import { ArrowLeft, Save, Plus, Trash2, Printer } from 'lucide-react';
 import Link from 'next/link';
 
 type DraftPrescriptionItem = Omit<PrescriptionItem, 'medication_id'> & {
   medication_id: number | '';
 };
+
+type EditableDraftPrescriptionField =
+  | 'medicine_name_snapshot'
+  | 'generic_name_snapshot'
+  | 'brand_name_snapshot'
+  | 'strength_snapshot'
+  | 'dose'
+  | 'frequency'
+  | 'timing'
+  | 'duration'
+  | 'route'
+  | 'instructions'
+  | 'quantity'
+  | 'medicine_status'
+  | 'change_reason';
 
 export default function NewPrescription() {
   const { id } = useParams();
@@ -34,7 +46,6 @@ export default function NewPrescription() {
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [previousPrescriptions, setPreviousPrescriptions] = useState<Prescription[]>([]);
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings | null>(null);
   
   const [selectedConsultationId, setSelectedConsultationId] = useState('');
   const [items, setItems] = useState<DraftPrescriptionItem[]>([]);
@@ -50,9 +61,6 @@ export default function NewPrescription() {
 
         const previousRx = await prescriptionAPI.getByPatient(Number(id));
         setPreviousPrescriptions(previousRx);
-
-        const settings = await settingsAPI.getClinic();
-        setClinicSettings(settings);
         
         const consults = await consultationAPI.getHistory(Number(id));
         setConsultations(consults);
@@ -107,7 +115,11 @@ export default function NewPrescription() {
     setItems(newItems);
   };
 
-  const handleItemChange = (index: number, field: string, value: string) => {
+  const handleItemChange = (
+    index: number,
+    field: EditableDraftPrescriptionField,
+    value: string,
+  ) => {
     const newItems = [...items];
     newItems[index][field] = value;
     setItems(newItems);
@@ -150,7 +162,7 @@ export default function NewPrescription() {
     
     setSaving(true);
     try {
-      const ageAtPrescription = differenceInYears(new Date(), new Date(patient.date_of_birth));
+      const ageAtPrescription = calculateAge(patient.date_of_birth);
       const normalizedItems: PrescriptionItem[] = items.map((item) => ({
         ...item,
         medication_id: Number(item.medication_id),
@@ -167,8 +179,8 @@ export default function NewPrescription() {
       const savedPrescription = await prescriptionAPI.create(prescData);
       
       if (print) {
-        await prescriptionAPI.markPrinted(savedPrescription.prescription_id);
-        generatePrescriptionPDF(patient, savedPrescription, normalizedItems, clinicSettings ?? undefined);
+        router.push(`/dashboard/prescriptions/${savedPrescription.prescription_id}/print`);
+        return;
       }
       
       router.push(`/dashboard/patients/${id}`);
@@ -365,7 +377,7 @@ export default function NewPrescription() {
             disabled={saving} 
             className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
           >
-            <Printer className="w-4 h-4" /> Save & Print PDF
+            <Printer className="w-4 h-4" /> Save & Print
           </button>
         </div>
       </div>

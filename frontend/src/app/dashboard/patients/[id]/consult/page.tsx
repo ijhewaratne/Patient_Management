@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { consultationAPI, patientAPI, Patient } from '@/lib/api';
+import { calculateAge } from '@/lib/age';
 import { ArrowLeft, Mic, Save, Sparkles, Square } from 'lucide-react';
 import Link from 'next/link';
-import { differenceInYears } from 'date-fns';
 
 type BrowserSpeechRecognitionEvent = {
   results: ArrayLike<{
@@ -273,9 +273,7 @@ export default function NewConsultation() {
 
     setLoading(true);
     try {
-      const ageAtVisit = patient
-        ? differenceInYears(new Date(), new Date(patient.date_of_birth))
-        : 0;
+      const ageAtVisit = patient ? calculateAge(patient.date_of_birth) : 0;
 
       const consult = await consultationAPI.create({
         patient_id: Number(id),

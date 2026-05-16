@@ -2,6 +2,13 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:8000';
 
+function getStoredAccessToken() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return localStorage.getItem('access_token') || localStorage.getItem('token');
+}
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -10,11 +17,9 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  const token = getStoredAccessToken();
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -213,6 +218,40 @@ export type Medication = {
   max_dose_note?: string | null;
 };
 
+export type PrescriptionPrintData = {
+  prescription_id: number;
+  prescription_number: string;
+  consultation_id: number;
+  prescription_date: string;
+  age_at_prescription: number;
+  status: string;
+  next_review_date?: string | null;
+  confirmed_at?: string | null;
+  printed_at?: string | null;
+  patient: {
+    patient_id: number;
+    full_name: string;
+    date_of_birth: string;
+    gender: string;
+    phone: string;
+    address: string;
+  };
+  doctor: {
+    user_id: number;
+    name: string;
+    role: string;
+  };
+  clinic: ClinicSettings;
+  items: Array<Required<Pick<PrescriptionItem, 'medication_id' | 'medicine_name_snapshot' | 'generic_name_snapshot' | 'dose' | 'frequency' | 'timing' | 'duration' | 'route' | 'medicine_status'>> & PrescriptionItem>;
+};
+
+export const fetchPrescriptionPrintData = async (
+  prescriptionId: number,
+): Promise<PrescriptionPrintData> => {
+  const res = await api.get(`/prescriptions/${prescriptionId}/print`);
+  return res.data;
+};
+
 export const authAPI = {
   login: async (credentials: URLSearchParams): Promise<AuthToken> => {
     const res = await api.post('/auth/token', credentials, {
@@ -229,7 +268,7 @@ export const authAPI = {
 };
 
 export const patientAPI = {
-  search: async (query: string = ''): Promise<Patient[]> => {
+  search: async (query = ''): Promise<Patient[]> => {
     const res = await api.get(`/patients/?query=${query}`);
     return res.data;
   },
@@ -332,6 +371,9 @@ export const prescriptionAPI = {
   markPrinted: async (id: number) => {
     const res = await api.post(`/prescriptions/${id}/mark-printed`);
     return res.data;
+  },
+  getPrintData: async (id: number): Promise<PrescriptionPrintData> => {
+    return fetchPrescriptionPrintData(id);
   },
 };
 

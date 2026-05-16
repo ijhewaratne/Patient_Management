@@ -7,8 +7,28 @@ import auth
 import database
 import models
 import schemas
+from audit import log_action
 
 router = APIRouter(prefix="/patients", tags=["patient-summary"])
+
+
+def summary_snapshot(summary: models.PatientSummary) -> dict:
+    return {
+        "summary_id": summary.summary_id,
+        "patient_id": summary.patient_id,
+        "active_diagnosis": summary.active_diagnosis,
+        "key_history_summary": summary.key_history_summary,
+        "current_clinical_status": summary.current_clinical_status,
+        "active_risk_flags": summary.active_risk_flags,
+        "current_medication_summary": summary.current_medication_summary,
+        "last_visit_summary": summary.last_visit_summary,
+        "latest_plan": summary.latest_plan,
+        "next_review_reason": summary.next_review_reason,
+        "last_updated_consultation_id": summary.last_updated_consultation_id,
+        "doctor_confirmed": summary.doctor_confirmed,
+        "confirmed_by": summary.confirmed_by,
+        "updated_at": summary.updated_at,
+    }
 
 def clip(value: Optional[str], limit: int = 280) -> Optional[str]:
     if not value:
@@ -151,11 +171,22 @@ def update_patient_summary(
         raise HTTPException(status_code=404, detail="Patient not found")
 
     summary = get_or_create_summary(db, patient_id)
+    previous_state = summary_snapshot(summary)
     for field, value in payload.model_dump().items():
         setattr(summary, field, value)
     summary.confirmed_by = current_user.user_id if payload.doctor_confirmed else None
     if payload.doctor_confirmed:
         create_summary_version(db, summary, current_user.user_id)
+    db.flush()
+    log_action(
+        db,
+        current_user.user_id,
+        "CONFIRM" if payload.doctor_confirmed else "UPDATE",
+        "patient_summary",
+        summary.summary_id,
+        old_value=previous_state,
+        new_value=summary_snapshot(summary),
+    )
     db.commit()
     db.refresh(summary)
     return summary

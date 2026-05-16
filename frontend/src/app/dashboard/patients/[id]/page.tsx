@@ -3,14 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import {
-  ClinicSettings,
   Consultation,
   Patient,
   Prescription,
   consultationAPI,
   patientAPI,
   prescriptionAPI,
-  settingsAPI,
   summaryAPI,
   PatientSummary,
   PatientSummaryInput,
@@ -18,15 +16,14 @@ import {
 } from '@/lib/api';
 import { ArrowLeft, User, Calendar, Phone, Activity, FileText, Pill, Save, RefreshCcw } from 'lucide-react';
 import Link from 'next/link';
-import { format, differenceInYears } from 'date-fns';
-import { generatePrescriptionPDF } from '@/lib/pdf';
+import { format } from 'date-fns';
+import { calculateAge } from '@/lib/age';
 
 export default function PatientProfile() {
   const { id } = useParams();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [history, setHistory] = useState<Consultation[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings | null>(null);
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [summaryHistory, setSummaryHistory] = useState<PatientSummaryVersion[]>([]);
   const [summaryForm, setSummaryForm] = useState<PatientSummaryInput | null>(null);
@@ -45,9 +42,6 @@ export default function PatientProfile() {
         
         const ptPresc = await prescriptionAPI.getByPatient(Number(id));
         setPrescriptions(ptPresc);
-
-        const settings = await settingsAPI.getClinic();
-        setClinicSettings(settings);
 
         const patientSummary = await summaryAPI.getByPatient(Number(id));
         const patientSummaryHistory = await summaryAPI.getHistoryForPatient(Number(id));
@@ -77,20 +71,7 @@ export default function PatientProfile() {
   if (loading) return <div className="p-8">Loading patient profile...</div>;
   if (!patient) return <div className="p-8">Patient not found</div>;
 
-  const currentAge = differenceInYears(new Date(), new Date(patient.date_of_birth));
-
-  const handlePrintPrescription = async (prescriptionId: number) => {
-    try {
-      const prescription = await prescriptionAPI.getById(prescriptionId);
-      if (prescription.status === 'confirmed') {
-        await prescriptionAPI.markPrinted(prescriptionId);
-      }
-      generatePrescriptionPDF(patient, prescription, prescription.items, clinicSettings ?? undefined);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to print prescription');
-    }
-  };
+  const currentAge = calculateAge(patient.date_of_birth);
 
   const handleSummaryChange = (
     event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
@@ -412,12 +393,12 @@ export default function PatientProfile() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-medium px-2 py-1 bg-gray-100 text-gray-600 rounded-full">{presc.status}</span>
-                      <button
-                        onClick={() => handlePrintPrescription(presc.prescription_id)}
+                      <Link
+                        href={`/dashboard/prescriptions/${presc.prescription_id}/print`}
                         className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
                       >
                         Print
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 ))}

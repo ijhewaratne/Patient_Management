@@ -3,8 +3,27 @@ from sqlalchemy import String
 from sqlalchemy.orm import Session
 from typing import List
 import auth, models, schemas, database
+from audit import log_action
 
 router = APIRouter(prefix="/patients", tags=["patients"])
+
+
+def patient_snapshot(patient: models.Patient) -> dict:
+    return {
+        "patient_id": patient.patient_id,
+        "full_name": patient.full_name,
+        "date_of_birth": patient.date_of_birth,
+        "gender": patient.gender,
+        "phone": patient.phone,
+        "address": patient.address,
+        "guardian_name": patient.guardian_name,
+        "guardian_phone": patient.guardian_phone,
+        "emergency_contact": patient.emergency_contact,
+        "allergies": patient.allergies,
+        "medical_conditions": patient.medical_conditions,
+        "created_at": patient.created_at,
+        "updated_at": patient.updated_at,
+    }
 
 @router.post("/", response_model=schemas.PatientResponse)
 def create_patient(
@@ -14,6 +33,15 @@ def create_patient(
 ):
     db_patient = models.Patient(**patient.model_dump())
     db.add(db_patient)
+    db.flush()
+    log_action(
+        db,
+        current_user.user_id,
+        "CREATE",
+        "patients",
+        db_patient.patient_id,
+        new_value=patient_snapshot(db_patient),
+    )
     db.commit()
     db.refresh(db_patient)
     return db_patient

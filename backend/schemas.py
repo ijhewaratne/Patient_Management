@@ -143,6 +143,55 @@ class PrescriptionPrintResponse(BaseModel):
     status: str
     printed_at: datetime
 
+
+class PrescriptionPrintPatient(BaseModel):
+    patient_id: int
+    full_name: str
+    date_of_birth: date
+    gender: str
+    phone: str
+    address: str
+
+
+class PrescriptionPrintDoctor(BaseModel):
+    user_id: int
+    name: str
+    role: str
+
+
+class PrescriptionPrintItem(BaseModel):
+    item_id: int
+    medication_id: int
+    medicine_name_snapshot: str
+    generic_name_snapshot: str
+    brand_name_snapshot: Optional[str] = None
+    strength_snapshot: Optional[str] = None
+    dose: str
+    frequency: str
+    timing: str
+    duration: str
+    route: str
+    instructions: Optional[str] = None
+    quantity: Optional[str] = None
+    medicine_status: str
+    change_reason: Optional[str] = None
+
+
+class PrescriptionPrintData(BaseModel):
+    prescription_id: int
+    prescription_number: str
+    consultation_id: int
+    prescription_date: datetime
+    age_at_prescription: int
+    status: str
+    next_review_date: Optional[date] = None
+    confirmed_at: Optional[datetime] = None
+    printed_at: Optional[datetime] = None
+    patient: PrescriptionPrintPatient
+    doctor: PrescriptionPrintDoctor
+    clinic: "ClinicSettingsResponse"
+    items: list[PrescriptionPrintItem]
+
 class ClinicSettingsBase(BaseModel):
     clinic_name: Optional[str] = None
     clinic_address: Optional[str] = None

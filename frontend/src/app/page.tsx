@@ -18,8 +18,9 @@ export default function LoginPage() {
       params.append('password', password);
       
       const res = await authAPI.login(params);
+      localStorage.setItem('access_token', res.access_token);
       localStorage.setItem('token', res.access_token);
-      localStorage.setItem('user_id', res.user_id);
+      localStorage.setItem('user_id', String(res.user_id));
       router.push('/dashboard');
     } catch {
       setError('Invalid username or password');
