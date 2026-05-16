@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Medication,
   patientAPI,
@@ -39,6 +39,8 @@ type EditableDraftPrescriptionField =
 export default function NewPrescription() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedConsultationId = searchParams.get('consultationId');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -64,7 +66,14 @@ export default function NewPrescription() {
         
         const consults = await consultationAPI.getHistory(Number(id));
         setConsultations(consults);
-        if (consults.length > 0) {
+        if (
+          requestedConsultationId &&
+          consults.some(
+            (consultation) => consultation.consultation_id === Number(requestedConsultationId),
+          )
+        ) {
+          setSelectedConsultationId(requestedConsultationId);
+        } else if (consults.length > 0) {
           setSelectedConsultationId(consults[0].consultation_id.toString());
         }
       } catch (err) {
@@ -74,7 +83,7 @@ export default function NewPrescription() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, requestedConsultationId]);
 
   const addMedicationRow = () => {
     setItems([...items, {

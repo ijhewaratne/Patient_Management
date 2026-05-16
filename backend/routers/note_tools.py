@@ -34,7 +34,7 @@ async def transcribe_audio_note(
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Audio file is required")
 
-    transcript = note_processing.transcribe_audio_with_openai(
+    transcript, processing_mode = note_processing.transcribe_audio(
         audio_bytes=audio_bytes,
         filename=audio.filename or "dictation.webm",
         content_type=audio.content_type or "audio/webm",
@@ -42,10 +42,10 @@ async def transcribe_audio_note(
     if not transcript:
         raise HTTPException(
             status_code=400,
-            detail="Audio transcription requires a working OPENAI_API_KEY-backed transcription setup",
+            detail="Audio transcription requires either LOCAL_WHISPER_URL or a working OPENAI_API_KEY-backed transcription setup",
         )
 
     return schemas.AudioTranscriptionResponse(
         transcript=transcript,
-        processing_mode="openai-audio",
+        processing_mode=processing_mode or "unknown",
     )

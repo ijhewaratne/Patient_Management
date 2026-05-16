@@ -4,6 +4,7 @@ import re
 import uuid
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from typing import Optional
 
 
@@ -237,35 +238,88 @@ def process_note(
     )
 
 
-def transcribe_audio_with_openai(audio_bytes: bytes, filename: str, content_type: str) -> Optional[str]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return None
-
-    model = os.getenv("OPENAI_TRANSCRIPTION_MODEL", "gpt-4o-mini-transcribe")
+def build_multipart_form_data(
+    fields: list[tuple[str, str]],
+    files: list[tuple[str, str, bytes, str]],
+) -> tuple[str, bytes]:
     boundary = f"----CodexBoundary{uuid.uuid4().hex}"
 
-    def part(name: str, value: str) -> bytes:
+    def text_part(name: str, value: str) -> bytes:
         return (
             f"--{boundary}\r\n"
             f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
             f"{value}\r\n"
         ).encode("utf-8")
 
-    file_header = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
-        f"Content-Type: {content_type or 'application/octet-stream'}\r\n\r\n"
-    ).encode("utf-8")
+    parts: list[bytes] = []
+    for name, value in fields:
+        parts.append(text_part(name, value))
+    for field_name, filename, file_bytes, mime_type in files:
+        parts.extend(
+            [
+                (
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
+                    f"Content-Type: {mime_type or 'application/octet-stream'}\r\n\r\n"
+                ).encode("utf-8"),
+                file_bytes,
+                b"\r\n",
+            ]
+        )
+    parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return boundary, b"".join(parts)
 
-    body = b"".join(
+
+def call_local_whisper(audio_bytes: bytes, filename: str, content_type: str) -> Optional[str]:
+    whisper_url = os.getenv("LOCAL_WHISPER_URL")
+    if not whisper_url:
+        return None
+
+    parsed = urlparse(whisper_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+
+    fields: list[tuple[str, str]] = []
+    model = os.getenv("LOCAL_WHISPER_MODEL")
+    language = os.getenv("LOCAL_WHISPER_LANGUAGE")
+    if model:
+        fields.append(("model", model))
+    if language:
+        fields.append(("language", language))
+
+    boundary, body = build_multipart_form_data(
+        fields,
         [
-            part("model", model),
-            file_header,
-            audio_bytes,
-            b"\r\n",
-            f"--{boundary}--\r\n".encode("utf-8"),
-        ]
+            ("audio", filename, audio_bytes, content_type),
+            ("file", filename, audio_bytes, content_type),
+        ],
+    )
+    request = urllib.request.Request(
+        whisper_url,
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+        return None
+
+    text = payload.get("text")
+    return text.strip() if isinstance(text, str) else None
+
+
+def transcribe_audio_with_openai(audio_bytes: bytes, filename: str, content_type: str) -> Optional[str]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    model = os.getenv("OPENAI_TRANSCRIPTION_MODEL", "gpt-4o-mini-transcribe")
+    boundary, body = build_multipart_form_data(
+        [("model", model)],
+        [("file", filename, audio_bytes, content_type)],
     )
 
     request = urllib.request.Request(
@@ -286,3 +340,15 @@ def transcribe_audio_with_openai(audio_bytes: bytes, filename: str, content_type
 
     text = payload.get("text")
     return text.strip() if isinstance(text, str) else None
+
+
+def transcribe_audio(audio_bytes: bytes, filename: str, content_type: str) -> tuple[Optional[str], Optional[str]]:
+    local_text = call_local_whisper(audio_bytes, filename, content_type)
+    if local_text:
+        return local_text, "local-whisper"
+
+    openai_text = transcribe_audio_with_openai(audio_bytes, filename, content_type)
+    if openai_text:
+        return openai_text, "openai-audio"
+
+    return None, None

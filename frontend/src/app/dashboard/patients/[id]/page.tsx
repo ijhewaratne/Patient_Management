@@ -150,7 +150,7 @@ export default function PatientProfile() {
           <button className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors shadow-sm">
             Edit Patient
           </button>
-          <Link href={`/dashboard/patients/${id}/consult`} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm">
+          <Link href={`/dashboard/patients/${id}/consultation/capture`} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm">
             New Consultation
           </Link>
         </div>
